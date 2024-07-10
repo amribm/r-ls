@@ -1,5 +1,8 @@
 use clap::{Arg, ArgAction, Command};
+use std::ffi::OsString;
+use std::path::Path;
 use std::{env::args_os, fs, io};
+use thiserror::Error;
 
 mod options {
     pub const ALL: &str = "show all the files";
@@ -7,20 +10,29 @@ mod options {
     pub const DIRS: &str = "directory";
 }
 
+#[derive(Debug, Error)]
+enum LsError {
+    #[error("{0}")]
+    Io(#[from] io::Error),
+
+    #[error("unable to unwrap error")]
+    DirUnwrapErr,
+}
+
 fn main() -> io::Result<()> {
     let matches = app().get_matches_from(args_os());
 
     let is_all = matches.get_flag(options::ALL);
 
-    let mut dirs: Vec<String> = match matches.get_many::<String>(options::DIRS) {
-        Some(s) => s.map(|x| x.to_string()).collect(),
-        None => vec![String::new()],
+    let mut dirs = match matches.get_many::<OsString>(options::DIRS) {
+        Some(s) => s.map(|x| Path::new(x)).collect(),
+        None => vec![Path::new(".")],
     };
 
     dirs.sort();
 
     for dir in dirs {
-        list_dir(dir)?;
+        list_dir(dir, RatConfig::new())?;
     }
 
     Ok(())
@@ -44,13 +56,21 @@ fn app() -> Command {
     // )
 }
 
-fn list_dir(dir: String) -> io::Result<()> {
-    println!("{}:", dir);
-    let files = fs::read_dir(dir)?.map(|f| f.unwrap());
+struct RatConfig {
+    all: bool,
+}
 
-    for file in files {
-        println!("{:>6?}", file);
+impl RatConfig {
+    fn new() -> RatConfig {
+        RatConfig { all: true }
     }
+}
+
+fn list_dir(dir: &Path, opts: RatConfig) -> Result<(), LsError> {
+    println!("{:?}:", dir.file_name());
+    let files = fs::read_dir(dir)?;
+
+    for file in files {}
 
     Ok(())
 }
