@@ -15,24 +15,24 @@ enum LsError {
     #[error("{0}")]
     Io(#[from] io::Error),
 
-    #[error("unable to unwrap error")]
+    #[error("unable to unwrap directory")]
     DirUnwrapErr,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), LsError> {
     let matches = app().get_matches_from(args_os());
 
     let is_all = matches.get_flag(options::ALL);
 
-    let mut dirs = match matches.get_many::<OsString>(options::DIRS) {
-        Some(s) => s.map(|x| Path::new(x)).collect(),
-        None => vec![Path::new(".")],
-    };
+    let mut dirs = matches
+        .get_many::<String>(options::DIRS)
+        .map(|v| v.map(Path::new).collect())
+        .unwrap_or_else(|| vec![Path::new(".")]);
 
     dirs.sort();
 
     for dir in dirs {
-        list_dir(dir, RatConfig::new())?;
+        list_dir(dir, LsConfig::new())?;
     }
 
     Ok(())
@@ -56,21 +56,28 @@ fn app() -> Command {
     // )
 }
 
-struct RatConfig {
+struct LsConfig {
     all: bool,
 }
 
-impl RatConfig {
-    fn new() -> RatConfig {
-        RatConfig { all: true }
+impl LsConfig {
+    fn new() -> LsConfig {
+        LsConfig { all: true }
     }
 }
 
-fn list_dir(dir: &Path, opts: RatConfig) -> Result<(), LsError> {
+fn list_dir(dir: &Path, opts: LsConfig) -> Result<(), LsError> {
     println!("{:?}:", dir.file_name());
     let files = fs::read_dir(dir)?;
 
-    for file in files {}
+    for file in files {
+        if let Ok(fl) = file {
+            let file_name = fl.file_name().to_string_lossy().to_string();
+            println!("{file_name}")
+        } else {
+            return Err(LsError::DirUnwrapErr);
+        };
+    }
 
     Ok(())
 }
