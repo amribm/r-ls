@@ -21,18 +21,23 @@ enum LsError {
 
 fn main() -> Result<(), LsError> {
     let matches = app().get_matches_from(args_os());
+    let mut conf = LsConfig::new();
 
-    let is_all = matches.get_flag(options::ALL);
+    conf.all = matches.get_flag(options::ALL);
 
     let mut dirs = matches
         .get_many::<String>(options::DIRS)
         .map(|v| v.map(Path::new).collect())
         .unwrap_or_else(|| vec![Path::new(".")]);
 
+    if dirs.len() > 1 {
+        conf.print_dir = true
+    }
+
     dirs.sort();
 
     for dir in dirs {
-        list_dir(dir, LsConfig::new())?;
+        list_dir(dir, &conf)?;
     }
 
     Ok(())
@@ -58,21 +63,30 @@ fn app() -> Command {
 
 struct LsConfig {
     all: bool,
+    print_dir: bool,
 }
 
 impl LsConfig {
     fn new() -> LsConfig {
-        LsConfig { all: true }
+        LsConfig {
+            all: false,
+            print_dir: false,
+        }
     }
 }
 
-fn list_dir(dir: &Path, opts: LsConfig) -> Result<(), LsError> {
-    println!("{:?}:", dir.file_name());
+fn list_dir(dir: &Path, opts: &LsConfig) -> Result<(), LsError> {
+    if opts.print_dir {
+        println!("{}:", dir.to_string_lossy().to_string());
+    }
     let files = fs::read_dir(dir)?;
 
     for file in files {
         if let Ok(fl) = file {
             let file_name = fl.file_name().to_string_lossy().to_string();
+            if !opts.all && file_name.starts_with(".") {
+                continue;
+            }
             println!("{file_name}")
         } else {
             return Err(LsError::DirUnwrapErr);
